@@ -1,24 +1,36 @@
 pipeline {
-    agent none
+    agent {
+        label '10.40.51.100'
+    }
+
     stages {
         stage('Build') {
-            agent {
-                docker {
-                    image 'python:2-alpine'
-                }
-            }
             steps {
-                sh 'python -m py_compile sources/add2vals.py sources/calc.py'
+                script {
+                    sh 'ls'
+                    uid = sh(returnStdout: true, script: 'id -u').trim()
+                    gid = sh(returnStdout: true, script: 'id -g').trim()
+                    docker.image('python:2-alpine').inside("-u ${uid}:${gid} -e HOME=/tmp") {
+                        sh """#!/bin/sh
+                        set -ex
+                        python -m py_compile sources/add2vals.py sources/calc.py
+                        """
+                    }
+                }
             }
         }
         stage('Test') {
-            agent {
-                docker {
-                    image 'qnib/pytest'
-                }
-            }
             steps {
-                sh 'py.test --verbose --junit-xml test-reports/results.xml sources/test_calc.py'
+                script {
+                    uid = sh(returnStdout: true, script: 'id -u').trim()
+                    gid = sh(returnStdout: true, script: 'id -g').trim()
+                    docker.image('qnib/pytest').inside("-u ${uid}:${gid} -e HOME=/tmp") {
+                        sh """#!/bin/sh
+                        set -ex
+                        py.test --verbose --junit-xml test-reports/results.xml sources/test_calc.py
+                        """
+                    }
+                }
             }
             post {
                 always {
@@ -27,13 +39,17 @@ pipeline {
             }
         }
         stage('Deliver') {
-            agent {
-                docker {
-                    image 'cdrx/pyinstaller-linux:python2'
-                }
-            }
             steps {
-                sh 'pyinstaller --onefile sources/add2vals.py'
+                script {
+                    uid = sh(returnStdout: true, script: 'id -u').trim()
+                    gid = sh(returnStdout: true, script: 'id -g').trim()
+                    docker.image('cdrx/pyinstaller-linux:python2').inside("-u ${uid}:${gid} -e HOME=/tmp") {
+                        sh """#!/bin/sh
+                        set -ex
+                        pyinstaller --onefile sources/add2vals.py
+                        """
+                    }
+                }
             }
             post {
                 success {
